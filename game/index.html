@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solara Heat — an open-world crime game</title>
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Solara Heat: explore the city of Solara Bay on foot and by car"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="vignette"></div>
+
+<div id="hud" class="hidden">
+  <div id="hud-left">
+    <div id="cash">$0</div>
+    <div class="bar-label">HEALTH</div>
+    <div class="bar"><div id="health-fill"></div></div>
+    <div class="bar-label">ARMOR</div>
+    <div class="bar armor"><div id="armor-fill"></div></div>
+    <div id="respect"></div>
+  </div>
+  <div id="hud-right">
+    <canvas id="minimap" width="190" height="190"></canvas>
+    <div id="stars" aria-label="Wanted level"></div>
+    <div id="clock"></div>
+  </div>
+  <div id="objective" class="hidden">
+    <div id="objective-title"></div>
+    <div id="objective-text"></div>
+  </div>
+  <div id="weapon" class="hidden"></div>
+  <div id="speedo" class="hidden"></div>
+  <div id="prompt" class="hidden"></div>
+  <div id="toast" class="hidden"></div>
+  <div id="dialogue" class="hidden">
+    <div id="dialogue-name"></div>
+    <div id="dialogue-text"></div>
+    <div id="dialogue-hint">E »</div>
+  </div>
+</div>
+
+<div id="banner" class="hidden"><div id="banner-text"></div><div id="banner-sub"></div></div>
+
+<div id="title-screen" class="screen">
+  <div class="title-inner">
+    <div class="title-kicker">SOLARA BAY &middot; POP. 212,000 &middot; CRIME: RISING</div>
+    <h1>SOLARA <span>HEAT</span></h1>
+    <p class="tagline">Nico Vega owes the Marina Crew $10,000 by Friday. One fixer, five jobs,
+    and a whole sun-soaked city to burn rubber through. Drive it, steal it, outrun it.</p>
+    <div class="title-buttons">
+      <button id="btn-new" type="button">NEW GAME</button>
+      <button id="btn-continue" type="button">CONTINUE</button>
+    </div>
+    <div class="controls-grid">
+      <div><b>W A S D</b> move / drive</div>
+      <div><b>Mouse</b> camera &amp; aim</div>
+      <div><b>Click</b> shoot (once armed)</div>
+      <div><b>E</b> enter car / talk / take</div>
+      <div><b>Shift</b> sprint</div>
+      <div><b>Space</b> handbrake</div>
+      <div><b>R</b> reload</div>
+      <div><b>P / Esc</b> pause</div>
+      <div><b>M</b> mute</div>
+    </div>
+    <p class="credits">An original open-world crime game. Every street, name and story is its own.
+    Built with three.js (MIT). No affiliation with any other game or studio.</p>
+  </div>
+</div>
+
+<div id="pause-screen" class="screen hidden">
+  <div class="title-inner">
+    <h1 class="small">PAUSED</h1>
+    <p class="tagline" id="pause-stats"></p>
+    <div class="title-buttons">
+      <button id="btn-resume" type="button">RESUME</button>
+      <button id="btn-save" type="button">SAVE GAME</button>
+      <button id="btn-quit" type="button">QUIT TO TITLE</button>
+    </div>
+  </div>
+</div>
+
+<script src="./vendor/three.min.js"></script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>

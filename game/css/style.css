@@ -1,0 +1,140 @@
+/* Solara Heat — HUD and menu styling. Warm dusk palette: coral, sand, teal sea.
+   Everything is DOM over the WebGL canvas so text stays crisp at any size. */
+
+:root {
+  --coral: #ff6b4a;
+  --sun: #ffb703;
+  --teal: #0e7c86;
+  --ink: rgba(12, 14, 22, 0.72);
+  --paper: #fff6ea;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; height: 100%; overflow: hidden; background: #1a0f14;
+  font-family: "Avenir Next", "Segoe UI", Verdana, system-ui, sans-serif;
+  color: var(--paper);
+}
+
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* Read aloud, never shown: the status line screen readers announce. */
+#status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.hidden { display: none !important; }
+
+#vignette {
+  position: fixed; inset: 0; pointer-events: none; opacity: 0;
+  background: radial-gradient(ellipse at center, transparent 52%, rgba(190, 10, 10, 0.55) 100%);
+  transition: opacity 0.25s ease;
+}
+
+/* ---------- HUD ---------- */
+
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+
+#hud-left { position: absolute; top: 16px; left: 18px; text-shadow: 0 2px 6px rgba(0,0,0,0.8); }
+#cash { font-size: 30px; font-weight: 800; letter-spacing: 0.5px; color: #7dff9a; }
+.bar-label { font-size: 10px; font-weight: 700; letter-spacing: 2px; opacity: 0.85; margin-top: 6px; }
+.bar { width: 190px; height: 11px; background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.35); border-radius: 3px; overflow: hidden; }
+.bar > div { height: 100%; width: 100%; background: linear-gradient(90deg, #e5383b, #ff8c42); transition: width 0.2s ease; }
+.bar.armor > div { background: linear-gradient(90deg, #4361ee, #4cc9f0); }
+#respect { margin-top: 11px; font-size: 12px; font-weight: 700; letter-spacing: 1px; color: var(--sun); }
+
+#hud-right { position: absolute; top: 14px; right: 16px; text-align: center; }
+#minimap {
+  width: 190px; height: 190px; border-radius: 50%;
+  border: 3px solid rgba(255, 246, 234, 0.85);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.55);
+  background: #20303c;
+}
+#stars { margin-top: 6px; font-size: 24px; letter-spacing: 3px; color: var(--sun); text-shadow: 0 2px 6px rgba(0,0,0,0.9); min-height: 28px; }
+#stars .off { color: rgba(255,255,255,0.22); }
+#clock { font-size: 12px; font-weight: 700; letter-spacing: 2px; opacity: 0.9; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
+
+#objective {
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  max-width: 520px; text-align: center; background: var(--ink);
+  border-left: 4px solid var(--sun); border-right: 4px solid var(--sun);
+  padding: 8px 18px 10px; border-radius: 4px;
+}
+#objective-title { font-size: 12px; font-weight: 800; letter-spacing: 3px; color: var(--sun); }
+#objective-text { font-size: 16px; font-weight: 600; margin-top: 2px; }
+#objective-text .dist { color: var(--sun); font-weight: 800; }
+
+#weapon {
+  position: absolute; right: 20px; bottom: 22px; text-align: right;
+  font-size: 15px; font-weight: 800; letter-spacing: 2px; text-shadow: 0 2px 6px rgba(0,0,0,0.9);
+}
+#weapon .ammo { display: block; font-size: 24px; color: var(--paper); }
+
+#speedo {
+  position: absolute; right: 20px; bottom: 84px; text-align: right;
+  font-size: 30px; font-weight: 800; color: var(--paper); text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+}
+#speedo small { font-size: 12px; letter-spacing: 2px; opacity: 0.8; }
+
+#prompt {
+  position: absolute; left: 50%; bottom: 118px; transform: translateX(-50%);
+  background: var(--ink); padding: 8px 16px; border-radius: 20px;
+  font-size: 15px; font-weight: 700; letter-spacing: 0.4px; white-space: nowrap;
+}
+#prompt b { color: var(--sun); }
+
+#toast {
+  position: absolute; left: 50%; top: 30%; transform: translateX(-50%);
+  text-align: center; font-size: 34px; font-weight: 900; letter-spacing: 2px;
+  color: var(--sun); text-shadow: 0 3px 14px rgba(0,0,0,0.85);
+}
+#toast .sub { display: block; font-size: 17px; color: var(--paper); letter-spacing: 1px; margin-top: 4px; }
+
+#dialogue {
+  position: absolute; left: 50%; bottom: 30px; transform: translateX(-50%);
+  width: min(680px, 92vw); background: var(--ink); border-radius: 6px;
+  border-top: 3px solid var(--coral); padding: 12px 18px 14px; pointer-events: none;
+}
+#dialogue-name { font-size: 12px; font-weight: 800; letter-spacing: 2.5px; color: var(--coral); }
+#dialogue-text { font-size: 17px; line-height: 1.35; margin-top: 3px; }
+#dialogue-hint { text-align: right; font-size: 12px; font-weight: 800; color: var(--sun); animation: blink 1.1s infinite; }
+@keyframes blink { 50% { opacity: 0.25; } }
+
+/* ---------- Banners and screens ---------- */
+
+#banner {
+  position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; pointer-events: none;
+  background: rgba(8, 4, 6, 0.45);
+}
+#banner-text { font-size: 74px; font-weight: 900; letter-spacing: 10px; color: #e5383b; text-shadow: 0 6px 30px rgba(0,0,0,0.9); }
+#banner.busted #banner-text { color: #4cc9f0; }
+#banner-sub { font-size: 18px; font-weight: 600; letter-spacing: 1px; margin-top: 8px; text-shadow: 0 2px 8px rgba(0,0,0,0.9); }
+
+.screen {
+  position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(180deg, rgba(26, 10, 18, 0.25) 0%, rgba(26, 10, 18, 0.78) 78%);
+}
+.title-inner { text-align: center; max-width: 760px; padding: 24px; }
+.title-kicker { font-size: 13px; font-weight: 800; letter-spacing: 4px; color: var(--sun); text-shadow: 0 2px 8px rgba(0,0,0,0.8); }
+.screen h1 {
+  margin: 10px 0 6px; font-size: 92px; font-weight: 900; letter-spacing: 3px; line-height: 0.95;
+  color: var(--paper); text-shadow: 0 8px 34px rgba(0,0,0,0.75);
+}
+.screen h1 span { color: var(--coral); }
+.screen h1.small { font-size: 54px; }
+.tagline { font-size: 17px; line-height: 1.45; max-width: 620px; margin: 8px auto 20px; text-shadow: 0 2px 8px rgba(0,0,0,0.85); }
+.title-buttons { display: flex; gap: 14px; justify-content: center; margin-bottom: 22px; }
+.title-buttons button {
+  pointer-events: auto; cursor: pointer; border: 2px solid var(--sun); border-radius: 4px;
+  background: rgba(12, 14, 22, 0.82); color: var(--paper);
+  font: 800 16px/1 "Avenir Next", "Segoe UI", Verdana, sans-serif; letter-spacing: 2px;
+  padding: 13px 26px; transition: background 0.15s ease, transform 0.15s ease;
+}
+.title-buttons button:hover { background: var(--coral); border-color: var(--coral); transform: translateY(-2px); }
+.title-buttons button:disabled { opacity: 0.35; cursor: default; transform: none; }
+.controls-grid {
+  display: grid; grid-template-columns: repeat(3, auto); gap: 6px 26px; justify-content: center;
+  font-size: 13.5px; text-shadow: 0 1px 5px rgba(0,0,0,0.9); margin-bottom: 16px;
+}
+.controls-grid b { color: var(--sun); }
+.credits { font-size: 12px; opacity: 0.75; text-shadow: 0 1px 4px rgba(0,0,0,0.9); }
