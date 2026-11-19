@@ -1,216 +1,277 @@
-// Gunplay, deliberately simple and loud: hitscan shots, tracers that hang in the air for
-// a blink, muzzle flashes, and the dock crew — armed guards who hold their ground, shoot
-// back in bursts, and go down for good. The player's own shots resolve here too, against
-// guards, walkers, cars and walls, nearest first.
+// combat.js — the shooting in Solara Heat: Nico's hitscan pistol, the guards who
+// hold the docks and the bank, and the pickups they drop. The pistol fires along
+// the camera's centre ray; a tracer and a muzzle flash sell the shot, and a guard
+// is hit when the ray passes through his space with a clear line from Nico —
+// buildings block bullets exactly as they block sight. Guards fight like people
+// who want to live: they strafe around their cover, pause to reload behind it,
+// and shoot back with aim that worsens with range. Downed guards drop the cash
+// they were carrying; medkits and vests wait at fixed spots around the city.
 
-import { PISTOL } from './config.js';
-import { animateHumanoid, buildHumanoid, knockDown } from './player.js';
+import { makePerson, faceToward } from './people.js';
+import { collideCircle } from './vehicles.js';
+import { hasLineOfSight } from './police.js';
 
-/** A soft round glow texture for muzzle flashes and impact sparks. */
-function glowTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 64; canvas.height = 64;
-  const g = canvas.getContext('2d');
-  const grad = g.createRadialGradient(32, 32, 2, 32, 32, 30);
-  grad.addColorStop(0, 'rgba(255,240,200,1)');
-  grad.addColorStop(0.4, 'rgba(255,180,80,0.7)');
-  grad.addColorStop(1, 'rgba(255,140,40,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(canvas);
+export class Guard {
+  constructor(scene, rng, post) {
+    this.person = makePerson(rng, { shirt: 0x37414a, pants: 0x22262b, cap: 0x22262b });
+    this.person.setAim(true);
+    this.pos = this.person.group.position;
+    this.pos.set(post.x, 0, post.z);
+    scene.add(this.person.group);
+    this.post = post;
+    this.hp = 100;
+    this.state = 'idle'; // idle | fight | dead
+    this.shotTimer = rng.range(0.4, 1.4);
+    this.strafeDir = rng.chance(0.5) ? 1 : -1;
+    this.strafeTimer = rng.range(1, 2.4);
+    this.shotsFired = 0;
+    this.reloadTimer = 0;
+    this.phase = rng.range(0, 6);
+    this.rng = rng;
+  }
+
+  get alive() {
+    return this.state !== 'dead';
+  }
+
+  hurt(dmg) {
+    this.hp -= dmg;
+    this.state = 'fight';
+    if (this.hp <= 0) {
+      this.state = 'dead';
+      this.person.setProne(true);
+      this.person.setAim(false);
+      return true;
+    }
+    return false;
+  }
 }
 
-export function createCombat(scene, rng) {
-  const guards = [];
-  const tracers = [];
-  const flashes = [];
-  const glow = glowTexture();
-  const tracerMat = new THREE.LineBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.9 });
-
-  function addFlash(x, y, z, scale = 0.7) {
-    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, transparent: true, depthWrite: false }));
-    sprite.position.set(x, y, z);
-    sprite.scale.set(scale, scale, 1);
-    sprite.userData.life = 0.05;
-    scene.add(sprite);
-    flashes.push(sprite);
+export class Combat {
+  constructor(scene, rng) {
+    this.scene = scene;
+    this.rng = rng;
+    this.guards = [];
+    this.tracers = [];
+    this.pickups = [];
+    this.fireCooldown = 0;
+    this.events = {}; // onGuardDown(guard), onPlayerHit(dmg), onShoot(x, z)
   }
 
-  function addTracer(from, to) {
-    const geo = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(from.x, from.y, from.z),
-      new THREE.Vector3(to.x, to.y, to.z),
-    ]);
-    const line = new THREE.Line(geo, tracerMat.clone());
-    line.userData.life = 0.07;
-    scene.add(line);
-    tracers.push(line);
+  spawnGuard(post) {
+    const g = new Guard(this.scene, this.rng, post);
+    this.guards.push(g);
+    return g;
   }
 
-  /** One of the dock crew: black shirt, no cap, a gun in hand and a short temper. */
-  function spawnGuard(x, z, heading = 0) {
-    const mesh = buildHumanoid(rng, { shirt: 0x23272e, pants: 0x14161a, cap: null });
-    mesh.userData.gun.visible = true;
-    mesh.position.set(x, 0, z);
-    mesh.rotation.y = heading;
-    scene.add(mesh);
-    const guard = {
-      mesh, heading, health: 70, alive: true,
-      cooldown: rng.range(0.4, 1.4), burst: 0, animPhase: rng.range(0, 6),
-    };
-    guards.push(guard);
-    return guard;
+  clearGuards() {
+    for (const g of this.guards) this.scene.remove(g.person.group);
+    this.guards = [];
   }
 
-  function clearGuards() {
-    for (const guard of guards) scene.remove(guard.mesh);
-    guards.length = 0;
-  }
-
-  /** Ray vs the city's solid boxes: the distance a shot travels before a wall, or Infinity. */
-  function rayWallDistance(origin, dir, colliders) {
-    let best = Infinity;
-    for (const box of colliders) {
-      let tmin = 0; let tmax = best;
-      const axes = [
-        [origin.x, dir.x, box.minX, box.maxX],
-        [origin.z, dir.z, box.minZ, box.maxZ],
-      ];
-      let ok = true;
-      for (const [o, d, lo, hi] of axes) {
-        if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { ok = false; break; } }
-        else {
-          let t1 = (lo - o) / d; let t2 = (hi - o) / d;
-          if (t1 > t2) [t1, t2] = [t2, t1];
-          tmin = Math.max(tmin, t1); tmax = Math.min(tmax, t2);
-          if (tmin > tmax) { ok = false; break; }
-        }
-      }
-      if (ok && tmin > 0.5 && tmin < best) best = tmin;
+  addPickup(kind, x, z, amount = 0) {
+    const group = new THREE.Group();
+    const mat = (c) => new THREE.MeshLambertMaterial({ color: c });
+    if (kind === 'cash') {
+      const stack = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.22, 0.36), mat(0x3f9e4d));
+      stack.position.y = 0.5;
+      group.add(stack);
+    } else if (kind === 'health') {
+      const box = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.55), mat(0xf7f3e8));
+      box.position.y = 0.55;
+      group.add(box);
+      const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.58), mat(0xd7263d));
+      crossV.position.y = 0.55;
+      group.add(crossV);
+      const crossH = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.58), mat(0xd7263d));
+      crossH.position.y = 0.55;
+      group.add(crossH);
+    } else {
+      const vest = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.65, 0.3), mat(0x2e6bd9));
+      vest.position.y = 0.6;
+      group.add(vest);
     }
-    // The ground and the sea wall at head height: a shot fired level never hits them.
-    return best;
+    group.position.set(x, 0, z);
+    this.scene.add(group);
+    this.pickups.push({ kind, amount, group, taken: false, phase: this.rng.range(0, 6) });
   }
 
-  function raySphere(origin, dir, cx, cy, cz, radius) {
-    const ox = cx - origin.x; const oy = cy - origin.y; const oz = cz - origin.z;
-    const tca = ox * dir.x + oy * dir.y + oz * dir.z;
-    if (tca < 0) return Infinity;
-    const d2 = ox * ox + oy * oy + oz * oz - tca * tca;
-    const r2 = radius * radius;
-    if (d2 > r2) return Infinity;
-    return tca - Math.sqrt(r2 - d2);
+  // Fixed medkits and vests: outside the farmacia, the marina, the park, the docks
+  // gate and the police impound corner.
+  spawnCityPickups() {
+    this.addPickup('health', -52, -68);
+    this.addPickup('health', 128, 96);
+    this.addPickup('health', -118, 132);
+    this.addPickup('armor', 66, -116);
+    this.addPickup('armor', -178, -58);
   }
 
-  /**
-   * Resolve one of the player's shots. Targets: guards, pedestrians, cars, walls.
-   * Returns what was hit ('guard' | 'ped' | 'car' | 'wall' | null) so main can answer
-   * for crimes and score mission kills. Draws the tracer and the flash itself.
-   */
-  function playerShoot(origin, dir, targets) {
-    let bestT = Math.min(PISTOL.range, rayWallDistance(origin, dir, targets.colliders));
-    let hitKind = bestT === Infinity ? null : 'wall';
-    let hitRef = null;
-    for (const guard of targets.guards) {
-      if (!guard.alive) continue;
-      const p = guard.mesh.position;
-      const t = raySphere(origin, dir, p.x, p.y + 1.15, p.z, 0.85);
-      if (t < bestT) { bestT = t; hitKind = 'guard'; hitRef = guard; }
-    }
-    for (const ped of targets.peds) {
-      if (ped.state === 'down') continue;
-      const p = ped.mesh.position;
-      const t = raySphere(origin, dir, p.x, p.y + 1.15, p.z, 0.8);
-      if (t < bestT) { bestT = t; hitKind = 'ped'; hitRef = ped; }
-    }
-    for (const car of targets.cars) {
-      if (!car.alive) continue;
-      const p = car.mesh.position;
-      const t = raySphere(origin, dir, p.x, p.y + 0.75, p.z, 2.3);
-      if (t < bestT) { bestT = t; hitKind = 'car'; hitRef = car; }
-    }
-    const end = {
-      x: origin.x + dir.x * (bestT === Infinity ? PISTOL.range : bestT),
-      y: origin.y + dir.y * (bestT === Infinity ? PISTOL.range : bestT),
-      z: origin.z + dir.z * (bestT === Infinity ? PISTOL.range : bestT),
-    };
-    addTracer(origin, end);
-    addFlash(origin.x, origin.y, origin.z, 0.55);
-    if (hitKind) addFlash(end.x, end.y, end.z, 0.4);
-    if (hitKind === 'guard' && hitRef) {
-      hitRef.health -= PISTOL.damage;
-      if (hitRef.health <= 0 && hitRef.alive) {
-        hitRef.alive = false;
-        knockDown(hitRef.mesh);
+  // One pistol shot along the camera ray. Returns true when it fired.
+  tryShoot(dt, camera, player, sound, colliders) {
+    this.fireCooldown -= dt;
+    if (this.fireCooldown > 0) return false;
+    this.fireCooldown = 0.17;
+    sound.gunshot(true);
+    const origin = new THREE.Vector3();
+    camera.getWorldPosition(origin);
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    let bestT = 62;
+    let bestGuard = null;
+    for (const g of this.guards) {
+      if (!g.alive) continue;
+      const cx = g.pos.x - origin.x;
+      const cy = 1.25 - origin.y;
+      const cz = g.pos.z - origin.z;
+      const t = cx * dir.x + cy * dir.y + cz * dir.z;
+      if (t < 0 || t > bestT) continue;
+      const px = origin.x + dir.x * t;
+      const py = origin.y + dir.y * t;
+      const pz = origin.z + dir.z * t;
+      const miss = Math.hypot(px - g.pos.x, py - 1.25, pz - g.pos.z);
+      if (miss < 0.85) {
+        bestT = t;
+        bestGuard = g;
       }
     }
-    return { kind: hitKind, ref: hitRef };
+    const muzzle = new THREE.Vector3(player.pos.x, 1.35, player.pos.z);
+    let end;
+    if (bestGuard && hasLineOfSight(player.pos.x, player.pos.z, bestGuard.pos.x, bestGuard.pos.z, colliders)) {
+      end = new THREE.Vector3(bestGuard.pos.x, 1.25, bestGuard.pos.z);
+      const died = bestGuard.hurt(34);
+      if (died) {
+        this.addPickup('cash', bestGuard.pos.x, bestGuard.pos.z, this.rng.int(40, 90));
+        if (this.events.onGuardDown) this.events.onGuardDown(bestGuard);
+      }
+    } else {
+      end = origin.clone().add(dir.clone().multiplyScalar(bestT));
+    }
+    this.spawnTracer(muzzle, end);
+    if (this.events.onShoot) this.events.onShoot(player.pos.x, player.pos.z);
+    return true;
   }
 
-  /**
-   * The guards' half of the fight: face the player, keep a firing distance, and shoot
-   * in bursts with honest inaccuracy. ctx: {playerPos, onPlayerHit, audio, city}.
-   */
-  function updateGuards(dt, ctx) {
-    for (const guard of guards) {
-      if (!guard.alive) continue;
-      const pos = guard.mesh.position;
-      const dx = ctx.playerPos.x - pos.x;
-      const dz = ctx.playerPos.z - pos.z;
+  spawnTracer(a, b) {
+    const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.9 });
+    const line = new THREE.Line(geo, mat);
+    this.scene.add(line);
+    this.tracers.push({ line, life: 0.07 });
+    // Muzzle flash: a brief bright sprite at the gun.
+    const flash = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 6, 5),
+      new THREE.MeshBasicMaterial({ color: 0xffe9a8 }),
+    );
+    flash.position.copy(a);
+    this.scene.add(flash);
+    this.tracers.push({ line: flash, life: 0.045, isMesh: true });
+  }
+
+  alertGuardsNear(x, z, radius = 34) {
+    for (const g of this.guards) {
+      if (g.alive && Math.hypot(g.pos.x - x, g.pos.z - z) < radius) g.state = 'fight';
+    }
+  }
+
+  update(dt, ctx) {
+    const { player, colliders, sound } = ctx;
+    // Tracers fade.
+    for (let i = this.tracers.length - 1; i >= 0; i--) {
+      const t = this.tracers[i];
+      t.life -= dt;
+      if (t.life <= 0) {
+        this.scene.remove(t.line);
+        this.tracers.splice(i, 1);
+      }
+    }
+    // Guards.
+    for (const g of this.guards) {
+      if (!g.alive) continue;
+      const dx = player.pos.x - g.pos.x;
+      const dz = player.pos.z - g.pos.z;
       const dist = Math.hypot(dx, dz);
-      guard.heading = Math.atan2(dx, dz);
-      guard.mesh.rotation.y = guard.heading;
-      const sees = dist < 46 && !ctx.city.segmentBlocked(pos.x, pos.z, ctx.playerPos.x, ctx.playerPos.z);
-      if (!sees) {
-        animateHumanoid(guard.mesh, guard.animPhase, 0.15);
+      if (g.state === 'idle') {
+        if (dist < 26 && hasLineOfSight(g.pos.x, g.pos.z, player.pos.x, player.pos.z, colliders)) {
+          // A guard who sees an armed stranger near his post challenges him — once
+          // the mission says so; idle guards elsewhere just watch (main arms them).
+          if (g.armed) g.state = 'fight';
+        }
         continue;
       }
-      // Strafe a little while fighting; close in if the player is far, back off if close.
-      guard.animPhase += dt * 6;
-      animateHumanoid(guard.mesh, guard.animPhase, 0.5);
-      let mx = 0; let mz = 0;
-      if (dist > 20) { mx = dx / dist; mz = dz / dist; }
-      else if (dist < 8) { mx = -dx / dist; mz = -dz / dist; }
-      else { mx = -dz / dist * 0.5; mz = dx / dist * 0.5; }
-      pos.x += mx * 2.1 * dt;
-      pos.z += mz * 2.1 * dt;
-      ctx.city.collideCircle(pos, 0.55);
-
-      guard.cooldown -= dt;
-      if (guard.cooldown <= 0 && dist < 44) {
-        guard.cooldown = rng.range(0.75, 1.5);
-        const from = { x: pos.x + Math.sin(guard.heading) * 0.5, y: 1.25, z: pos.z + Math.cos(guard.heading) * 0.5 };
-        const hitChance = dist < 14 ? 0.5 : dist < 26 ? 0.34 : 0.2;
-        const hit = rng.next() < hitChance;
-        const miss = hit ? 0 : rng.range(0.8, 2.4);
-        const to = {
-          x: ctx.playerPos.x + (hit ? 0 : miss * (rng.chance(0.5) ? 1 : -1)),
-          y: 1.1,
-          z: ctx.playerPos.z + (hit ? 0 : miss * (rng.chance(0.5) ? 1 : -1)),
-        };
-        addTracer(from, to);
-        addFlash(from.x, from.y, from.z, 0.5);
-        ctx.audio.enemyShoot();
-        if (hit) ctx.onPlayerHit(rng.range(5, 10));
+      // Fighting: face the player, strafe around the cover point, shoot in bursts.
+      faceToward(g.person, dx, dz);
+      g.strafeTimer -= dt;
+      if (g.strafeTimer <= 0) {
+        g.strafeDir *= -1;
+        g.strafeTimer = this.rng.range(0.9, 2.2);
+      }
+      const cover = g.post.coverX !== undefined ? { x: g.post.coverX, z: g.post.coverZ } : g.post;
+      const toCover = Math.hypot(cover.x - g.pos.x, cover.z - g.pos.z);
+      let vx = 0;
+      let vz = 0;
+      if (g.reloadTimer > 0) {
+        g.reloadTimer -= dt;
+        // Duck back to cover while reloading.
+        if (toCover > 0.8) {
+          vx = ((cover.x - g.pos.x) / toCover) * 3.4;
+          vz = ((cover.z - g.pos.z) / toCover) * 3.4;
+        }
+      } else if (dist > 30) {
+        vx = (dx / dist) * 3.6;
+        vz = (dz / dist) * 3.6;
+      } else {
+        // Strafe perpendicular, staying near the post.
+        vx = (-dz / dist) * g.strafeDir * 1.9 + (g.post.x - g.pos.x) * 0.12;
+        vz = (dx / dist) * g.strafeDir * 1.9 + (g.post.z - g.pos.z) * 0.12;
+      }
+      g.pos.x += vx * dt;
+      g.pos.z += vz * dt;
+      collideCircle(g.pos, 0.55, colliders);
+      if (Math.abs(vx) + Math.abs(vz) > 0.2) {
+        g.phase += dt * 9;
+        g.person.setWalk(g.phase, 0.7);
+      }
+      // Shooting.
+      g.shotTimer -= dt;
+      if (g.reloadTimer <= 0 && g.shotTimer <= 0 && dist < 42) {
+        if (hasLineOfSight(g.pos.x, g.pos.z, player.pos.x, player.pos.z, colliders)) {
+          g.shotTimer = this.rng.range(0.8, 1.5);
+          g.shotsFired++;
+          sound.gunshot(false);
+          const from = new THREE.Vector3(g.pos.x, 1.35, g.pos.z);
+          const hitChance = Math.max(0.14, 0.52 - dist * 0.009) * (player.mode === 'car' ? 0.7 : 1);
+          if (this.rng.chance(hitChance)) {
+            const to = new THREE.Vector3(player.pos.x, 1.2, player.pos.z);
+            this.spawnTracer(from, to);
+            if (this.events.onPlayerHit) this.events.onPlayerHit(this.rng.range(5, 11));
+          } else {
+            const miss = new THREE.Vector3(
+              player.pos.x + this.rng.range(-2.4, 2.4),
+              1,
+              player.pos.z + this.rng.range(-2.4, 2.4),
+            );
+            this.spawnTracer(from, miss);
+          }
+          if (g.shotsFired % 6 === 0) g.reloadTimer = 1.6;
+        } else {
+          g.shotTimer = 0.3;
+        }
+      }
+    }
+    // Pickups bob, spin, and are collected on foot.
+    for (const p of this.pickups) {
+      if (p.taken) continue;
+      p.phase += dt * 2.4;
+      p.group.position.y = 0.15 + Math.sin(p.phase) * 0.12;
+      p.group.rotation.y = p.phase * 0.7;
+      if (player.mode === 'foot') {
+        const d = Math.hypot(p.group.position.x - player.pos.x, p.group.position.z - player.pos.z);
+        if (d < 1.7) {
+          p.taken = true;
+          this.scene.remove(p.group);
+          if (this.events.onPickup) this.events.onPickup(p);
+        }
       }
     }
   }
-
-  /** Fade tracers and flashes; called every frame. */
-  function updateEffects(dt) {
-    for (let i = tracers.length - 1; i >= 0; i -= 1) {
-      const line = tracers[i];
-      line.userData.life -= dt;
-      line.material.opacity = Math.max(0, line.userData.life / 0.07) * 0.9;
-      if (line.userData.life <= 0) { scene.remove(line); line.geometry.dispose(); tracers.splice(i, 1); }
-    }
-    for (let i = flashes.length - 1; i >= 0; i -= 1) {
-      const sprite = flashes[i];
-      sprite.userData.life -= dt;
-      sprite.material.opacity = Math.max(0, sprite.userData.life / 0.05);
-      if (sprite.userData.life <= 0) { scene.remove(sprite); flashes.splice(i, 1); }
-    }
-  }
-
-  return { guards, spawnGuard, clearGuards, playerShoot, updateGuards, updateEffects };
 }

@@ -1,6 +1,1 @@
-[
-  { "name": "1-cover.jpg", "query": "?shot=cover&seed=7" },
-  { "name": "2-chase.jpg", "query": "?shot=chase&seed=7" },
-  { "name": "3-docks.jpg", "query": "?shot=docks&seed=7" },
-  { "name": "4-boulevard.jpg", "query": "?shot=boulevard&seed=7" }
-]
+[{"name":"1-cover.jpg","query":"?shot=cover&seed=7"},{"name":"2-chase.jpg","query":"?shot=chase&seed=7"},{"name":"3-docks.jpg","query":"?shot=docks&seed=7"},{"name":"4-boulevard.jpg","query":"?shot=boulevard&seed=7"}]

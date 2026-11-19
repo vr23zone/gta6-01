@@ -2,70 +2,89 @@
 
 [![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![rank](https://make.fun/badge/gta6-01/vr23zone/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
-[![reward](https://make.fun/badge/gta6-01/vr23zone/gta6-01/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/vr23zone/gta6-01/rank.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-A complete open-world crime game in the browser, built from scratch with
-three.js and plain JavaScript. One original sun-soaked coastal city, one
-debt, five story missions, and every cop in Solara Bay between you and
-Friday.
+An open-world crime game that plays in a desktop browser, written from
+scratch in plain JavaScript on a vendored three.js. An original coastal
+city at golden hour, a courier with a debt, and five jobs between him
+and Friday.
 
-**Play it:** open `game/index.html` in desktop Chrome. It runs fully
-offline — the only library (three.js) is vendored under `game/vendor/`.
+**Play it:** serve `game/` with any static server (or run
+`node serve.ts` and open http://localhost:8080). It plays fully offline:
+the only library, three.js, sits in `game/vendor/`, and there is not one
+image or audio file in the game — every texture is painted on a canvas
+at boot and every sound is synthesized with Web Audio.
 
-## The game
+## The story
 
-Nico Vega owes the Marina Crew **$10,000, due Friday**. Fixer Sol Marín
-has work: steal, run, shoot, and race your way out of the debt across
-Solara Bay — a procedural 8×8-block city with a marina, a container
-docks, a park, beaches, and a coast road built for checkpoint sprints.
+**Nico Vega** owes the Marina Crew **$10,000, due Friday**. Fixer
+**Sol Marín** feeds him the work that pays it off, across Solara Bay —
+an 8×8-block procedural city with the Muelle 9 container docks, a
+marina, Plaza Verde park, the Banco Solara downtown, a beach, a pier,
+and a coast road that begs to be raced.
 
-- **A living city** — lane-following traffic that brakes, yields, and
-  flees; pedestrians who stroll, panic, and dive out of the road; a
-  wanted system with line-of-sight police who chase on foot and by car,
-  box you in, and bust you if they hold you.
-- **Five story missions** — *First Wheels* (steal a coupe), *Hot Package*
-  (a delivery under a two-star tail), *Costa Sprint* (8 checkpoints down
-  the coast road), *Dockside Trouble* (a pistol shootout at Muelle 9),
-  *The Big Score* (a four-star bank run and a hideout escape) — then
-  endless courier fares once the debt is cleared.
-- **Full crime sandbox** — steal any parked or moving car, run combat on
-  foot with a hitscan pistol (tracers, muzzle flash, guard AI that
-  strafes and takes cover behind containers), pick up cash, health, and
-  armor, and get **wasted** or **busted** with fines that bite.
-- **The whole HUD** — cash, health/armor, a live round minimap with
-  police/traffic/guard blips and an edge-clamped objective marker,
-  wanted stars, speedometer, dialogue boxes, mission banners, and a
-  pause screen. Progress auto-saves to localStorage.
-- **All-synthesized audio** — engine, sirens, gunshots, pickups, and a
-  sunset pad, generated with Web Audio. No audio files.
+1. **First Wheels** — steal the red coupe from the marina lot and park
+   it at your garage, under the law's nose.
+2. **Hot Package** — carry a package from the docks gate to a buyer at
+   Plaza Verde with a two-star tail and a clock.
+3. **Costa Sprint** — eight checkpoints down the coast road, one timer.
+4. **Dockside Trouble** — clear six armed guards at Muelle 9 and take
+   the cash case.
+5. **The Big Score** — rob Banco Solara at four stars and escape to the
+   hideout. Then the debt is done, and endless courier fares remain.
+
+## What's in the world
+
+- **Traffic with somewhere to be** — cars follow right-hand lanes,
+  turn at intersections, and brake for whatever is ahead of them,
+  including you. Parked cars line the kerbs. All of them can be stolen;
+  whether it becomes a crime depends on who saw it.
+- **A crowd** — forty pedestrians stroll the block perimeters, cross at
+  corners, and panic, run, or dive flat when shots ring out or a car
+  mounts the pavement.
+- **Police who hunt by eyesight** — heat becomes stars, stars become
+  interceptors. Cop cars box you in; officers on foot run you down and
+  fill the bust meter by holding you. Break line of sight — it is
+  tested honestly against the buildings — and the heat bleeds away.
+- **A pistol and people who shoot back** — hitscan combat with tracers
+  and muzzle flash; dock and bank guards strafe around cover, reload
+  behind it, and drop their cash where they fall. Medkits and armour
+  vests wait at known corners.
+- **The full instrument panel** — cash and debt, wanted stars, health
+  and armour, a speedometer, a live round minimap (traffic, police,
+  guards, and a gold objective diamond that clamps to the rim),
+  dialogue, mission banners, a bust meter, pause, and wasted/busted
+  screens with fines. Progress auto-saves to localStorage.
 
 ## Controls
 
 | Input | Action |
 |---|---|
 | W A S D / arrows | Move / drive |
-| Mouse | Orbit camera |
-| F or Enter | Enter / steal / exit a car |
-| E | Talk / interact |
-| Shift | Sprint |
-| Left mouse (armed) | Shoot |
-| R | Reload |
-| P or Esc | Pause |
-| M | Mute |
+| Mouse (pointer locked) | Look |
+| Left mouse | Shoot |
+| E | Enter / exit a car, advance dialogue |
+| Shift | Sprint on foot |
+| Space | Handbrake |
+| P | Pause |
 
-## Tech notes
+## How it is built
 
-- `game/src/` is split into single-job modules named for what they do:
-  `city.js` builds the world, `vehicles.js` / `player.js` /
-  `pedestrians.js` / `police.js` / `combat.js` run the actors,
-  `missions.js` owns the story, `hud.js` + `minimap.js` draw the
-  interface, `audio.js` synthesizes every sound, `shots.js` stages the
-  screenshots.
-- Everything is procedural: canvas-painted building facades and signs,
-  seeded-RNG city layout, instanced palms and lamps, zero image or
-  audio assets.
-- `main.ts` (Node 22, stdlib only) copies `game/` + `screenshots/` to
-  the output directory and writes the submission dossier.
+`game/src/` is one file per job, named for it: `config.js` holds the
+city grid and the story's numbers; `city.js` builds the world and its
+collision list; `vehicles.js` makes the cars and drives the traffic;
+`people.js` makes the figures and walks the crowd; `player.js` is Nico
+and the camera; `police.js` is the wanted system; `combat.js` is the
+shooting; `missions.js` is the story; `hud.js` and `minimap.js` are the
+interface; `audio.js` synthesizes the engine, the sirens, the shots
+and the sunset pad; `save.js` keeps the auto-save; `shots.js` stages
+the four screenshots in `screenshots/` (open the game with
+`?shot=cover&seed=7` and friends to see them posed). The layout is
+seeded, so the city is the same city on every visit.
+
+`main.ts` (Node 22, standard library only) hands the entry in: it
+copies `game/` and `screenshots/` to the output directory and writes
+the dossier with the kit's vendored library.
 
 ## License
 

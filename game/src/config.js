@@ -1,63 +1,94 @@
-// Solara Heat — every shared number in one place: the city grid, the physics, the economy.
-// Solara Bay is a square grid city: streets run along every GRID line, blocks sit between them,
-// a beach and the sea close the south edge, and the docks fill the south-east corner.
+// config.js — every constant that shapes Solara Bay lives here: the street grid, the
+// district layout, the colour palette of a city at golden hour, the money economy of
+// Nico Vega's debt, and the names of the people and places in the story. One file to
+// tune, and the outline of the whole game in a single read.
 
-/** Fixed simulation step, seconds. The loop never advances the world by any other amount. */
-export const STEP = 1 / 60;
+// --- The grid -------------------------------------------------------------------
+// Streets run on a pitch of PITCH metres; BLOCK is the buildable square between the
+// roads and ROAD the asphalt width. Indices 0..GRID give GRID+1 streets each way, so
+// the built city spans WORLD metres square, centred on the origin.
+export const GRID = 8;
+export const PITCH = 60;
+export const BLOCK = 44;
+export const ROAD = 16;
+export const WORLD = GRID * PITCH; // 480
+export const HALF = WORLD / 2; // 240
+export const LANE = 3.4; // lane offset from a street centre line
+export const SIDEWALK = 2.6;
 
-/** Street spacing: streets run along x and z equal to a multiple of this, from -EXTENT to EXTENT. */
-export const GRID = 48;
-/** The grid's half-extent: streets at -192, -144, ..., 0, ..., 144, 192. */
-export const EXTENT = 192;
-/** Half the street's width; the drivable asphalt runs this far either side of a grid line. */
-export const ROAD_HALF = 8;
-/** Sidewalk width beyond the asphalt; pedestrians walk its outer edge. */
-export const WALK_HALF = 12.5;
-/** South of this z the city ends: sand, then sea. */
-export const BEACH_Z = 216;
-/** The sea's near edge; the water plane runs from here to the horizon. */
-export const SEA_Z = 246;
+// Street centre lines: streetX(i) is the x of the i-th north-south street.
+export const streetX = (i) => -HALF + i * PITCH;
+export const streetZ = (j) => -HALF + j * PITCH;
+// Block (i, j) centre: the square between streets i, i+1 and j, j+1.
+export const blockX = (i) => streetX(i) + PITCH / 2;
+export const blockZ = (j) => streetZ(j) + PITCH / 2;
 
-/** Player physics, on foot. */
-export const PLAYER = {
-  radius: 0.55,
-  walkSpeed: 5.2,
-  sprintSpeed: 8.6,
-  accel: 40,
-  maxHealth: 100,
-  maxArmor: 100,
+// The sea begins east of the promenade; the beach is the sand between them.
+export const BEACH_X = HALF + 26;
+export const SEA_X = HALF + 52;
+
+// --- Zones (block indices with a job) --------------------------------------------
+// docks: the Muelle 9 container yard, north-east. marina: the Marina Crew's basin,
+// south-east. park: Plaza Verde. bank: Banco Solara, dead centre. hideout: Nico's
+// garage, south-west corner. cafe: where Sol Marín holds court, by the marina.
+export const ZONES = {
+  docks: { i: [6, 7], j: [0, 1] },
+  marina: { i: [6, 7], j: [7, 7] },
+  park: { i: [2], j: [4] },
+  bank: { i: [4], j: [4] },
+  hideout: { i: [0], j: [7] },
+  cafe: { i: [5], j: [6] },
+};
+export const zoneAt = (i, j) => {
+  for (const [name, z] of Object.entries(ZONES)) {
+    if (z.i.includes(i) && z.j.includes(j)) return name;
+  }
+  return null;
 };
 
-/** Arcade car physics, shared by the player's car, traffic and the police. */
-export const CAR = {
-  radius: 1.55,
-  accel: 15.5,
-  brake: 26,
-  reverseMax: 9,
-  drag: 0.55,
-  gripTurn: 1.85,
-  policeAccel: 17.5,
-  policeTopBonus: 1.12,
+// --- Palette ---------------------------------------------------------------------
+export const COLORS = {
+  sky: 0xffb37a,
+  fog: 0xf7a56b,
+  sun: 0xffd9a0,
+  asphalt: 0x3c3f46,
+  sidewalk: 0xb8a88f,
+  sand: 0xeed9a4,
+  sea: 0x2e7f9e,
+  grass: 0x69a84f,
+  plaza: 0xd9c49a,
+  palmTrunk: 0x8a6844,
+  palmLeaf: 0x3f9e4d,
+  copBody: 0xf2f4f6,
+  copTrim: 0x1d4e89,
+  taxi: 0xffc933,
 };
 
-/** Wanted tuning: how fast stars are earned, how the police answer, how they fade. */
-export const WANTED = {
-  max: 5,
-  /** Seconds with no police eyes on the player before a star starts cooling down. */
-  unseenGrace: 7,
-  /** Seconds of staying unseen per star lost. */
-  decayPerStar: 9,
-  /** A police car this close to an on-foot player works on busting them. */
-  bustRadius: 5.2,
-  /** Seconds inside the bust radius, on foot, before the cuffs come out. */
-  bustTime: 2.4,
+// Car paint the traffic system and the parked cars share.
+export const CAR_PAINTS = [
+  0xd94f3d, 0x3d7bd9, 0xf2e3c9, 0x59b06a, 0xe8e8ec, 0x2b2f36, 0xff8c42, 0x9b59b6,
+  0x17a398, 0xc0c6ce, 0x74563c, 0xff5d8f,
+];
+
+// Shopfront names painted onto facades by the texture painter. All Solara's own.
+export const SHOP_NAMES = [
+  'CAFÉ SOL', 'HOTEL BRISA', 'FARO LICORES', 'PANADERÍA LUZ', 'TALLER NICO',
+  'MARINA CLUB', 'FARMACIA VIDA', 'HELADOS OLA', 'BANCO SOLARA', 'GIMNASIO ARENA',
+  'LIBROS MAREA', 'SUSHI FARO', 'FLORISTERÍA', 'ÓPTICA CLARA', 'DISCOS VINILO',
+  'PIZZA MUELLE', 'BANCO SOLARA', 'JOYERÍA PERLA', 'CINE FARO', 'MERCADO CENTRAL',
+];
+
+// --- The story -------------------------------------------------------------------
+export const STORY = {
+  hero: 'Nico Vega',
+  fixer: 'Sol Marín',
+  crew: 'the Marina Crew',
+  debt: 10000,
+  // Mission rewards, in order; they sum past the debt so the last job clears it.
+  rewards: [600, 1200, 1800, 2400, 4500],
+  bustFine: 350,
+  wastedFine: 250,
 };
 
-/** The pistol the dock job hands over: magazine, damage, cadence. */
-export const PISTOL = { mag: 12, damage: 34, cooldown: 0.24, range: 70, reloadTime: 1.1 };
-
-/** Story money: the debt hanging over Nico, and what the hospital and the precinct take. */
-export const ECONOMY = { debt: 10000, wastedFine: 0.1, bustedFine: 0.15 };
-
-/** localStorage keys, versioned so a later build never reads an older save by accident. */
+// Save slot key in localStorage.
 export const SAVE_KEY = 'solara-heat-save-v1';

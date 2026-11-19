@@ -1,31 +1,34 @@
-// The save: one JSON record in localStorage — cash, story progress, earnings, where Nico
-// was standing. Written from the pause menu and at every mission's end; read by Continue.
+// save.js — the localStorage auto-save. Solara Heat keeps one slot: cash, story
+// progress, health and where Nico was standing, written when a mission ends and
+// every few seconds while playing, so closing the tab loses nothing but the chase
+// you were in the middle of.
 
 import { SAVE_KEY } from './config.js';
 
-/** The save record, or null when there is none (or it is not one of ours). */
 export function loadSave() {
   try {
-    const raw = window.localStorage.getItem(SAVE_KEY);
+    const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return null;
     const data = JSON.parse(raw);
-    if (!data || typeof data.cash !== 'number' || typeof data.missionIndex !== 'number') return null;
+    if (typeof data !== 'object' || data === null) return null;
     return data;
   } catch {
     return null;
   }
 }
 
-/** Store the record. Storage can be off (private windows): then saving quietly does nothing. */
-export function storeSave(record) {
+export function writeSave(state) {
   try {
-    window.localStorage.setItem(SAVE_KEY, JSON.stringify(record));
-  } catch { /* the run still continues unsaved */ }
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ...state, at: Date.now() }));
+  } catch {
+    // Private mode or a full store: the game simply plays unsaved.
+  }
 }
 
-/** Wipe the save, for a new game. */
 export function clearSave() {
   try {
-    window.localStorage.removeItem(SAVE_KEY);
-  } catch { /* nothing to wipe */ }
+    localStorage.removeItem(SAVE_KEY);
+  } catch {
+    // Nothing to clear.
+  }
 }
